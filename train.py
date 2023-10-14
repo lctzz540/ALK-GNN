@@ -8,7 +8,7 @@ from pathlib import Path
 from torch import Tensor
 from utils import total_absolute_error
 import numpy as np
-import tqdm
+from tqdm import tqdm
 from net import NaiveEuclideanGNN
 
 
@@ -22,8 +22,8 @@ def run_epoch(
     def step(
         data_batch: Data,
     ) -> Tuple[float, float]:
-        pred = model.forward(data_batch)
-        target = data_batch.y
+        pred = model.forward(data_batch).float()
+        target = data_batch.y.float()
         loss = criterion(pred, target)
         if optim is not None:
             optim.zero_grad()
@@ -78,8 +78,6 @@ def train_model(
         "val_mae": np.full(num_epochs, float("nan")),
     }
 
-    # Auxiliary functions for updating and reporting
-    # Training progress statistics
     def update_statistics(i_epoch: int, **kwargs: float):
         for key, value in kwargs.items():
             result[key][i_epoch] = value
@@ -94,18 +92,14 @@ def train_model(
             ]
         )
 
-    # main training loop
     for i_epoch in range(0, num_epochs):
         progress_bar = tqdm(total=len(train_loader) + len(val_loader))
         try:
-            # tqdm for reporting progress
             progress_bar.set_description(desc(i_epoch))
 
-            # training epoch
             train_loss, train_mae = run_epoch(
                 model, train_loader, loss_fn, progress_bar, optim
             )
-            # validation epoch
             val_loss, val_mae = run_epoch(model, val_loader, loss_fn, progress_bar)
 
             update_statistics(

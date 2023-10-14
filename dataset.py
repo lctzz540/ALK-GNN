@@ -65,7 +65,7 @@ class MoleculeDataset(Dataset):
     def len(self):
         return len(self.data.x)
 
-    def get(self):
+    def get(self, idx=None):
         data_file = os.path.join(self.processed_dir, "data.pt")
         if not os.path.exists(data_file):
             self.process()

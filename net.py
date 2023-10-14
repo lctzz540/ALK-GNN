@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 from typing import Optional
 import torch_geometric.nn as geom_nn
@@ -10,13 +9,11 @@ class NaiveEuclideanGNN(nn.Module):
         self,
         hidden_channels: int,
         num_layers: int,
-        num_spatial_dims: int,
         final_embedding_size: Optional[int] = None,
         act: nn.Module = nn.ReLU(),
     ) -> None:
         super().__init__()
-        self.f_initial_embed = nn.Embedding(100, hidden_channels)
-        self.f_pos_embed = nn.Linear(num_spatial_dims, hidden_channels)
+        self.f_initial_embed = nn.Linear(30, hidden_channels)
         self.f_combine = nn.Sequential(
             nn.Linear(2 * hidden_channels, hidden_channels), act
         )
@@ -40,13 +37,7 @@ class NaiveEuclideanGNN(nn.Module):
         )
 
     def encode(self, data) -> Tensor:
-        atom_embedding = self.f_initial_embed(data.z)
-        pos_embedding = self.f_pos_embed(data.pos)
-
-        initial_node_embed = self.f_combine(
-            torch.cat((atom_embedding, pos_embedding), dim=-1)
-        )
-
+        initial_node_embed = self.f_initial_embed(data.x)
         node_embed = self.gnn(initial_node_embed, data.edge_index)
         return node_embed
 
