@@ -1,6 +1,7 @@
 import numpy as np
 from dataset import MoleculeDataset
 from torch_geometric.loader import DataLoader
+
 from utils import add_complete_graph_edge_index
 
 
@@ -30,10 +31,11 @@ class ALKDataModule:
 
     def dataset(self, transform=None) -> MoleculeDataset:
         dataset = MoleculeDataset(
-            root=".",
+            root="./data/",
+            filename="data.csv",
             pre_transform=add_complete_graph_edge_index,
         )
-        dataset.data.y = dataset.data.y[:, self.target_idx].view(-1, 1)
+        dataset.data.y = dataset.data.y.view(-1, 1)
         return dataset
 
     def loader(self, split, **loader_kwargs) -> DataLoader:

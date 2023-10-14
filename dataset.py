@@ -1,4 +1,4 @@
-from torch_geometric.data import InMemoryDataset, Data, Batch
+from torch_geometric.data import Dataset, Data
 import torch
 import os
 import pandas as pd
@@ -8,15 +8,11 @@ from rdkit import Chem
 import numpy as np
 
 
-class MoleculeDataset(InMemoryDataset):
-    def __init__(
-        self,
-        root,
-        filename="Data.csv",
-        transform=None,
-        pre_transform=None,
-    ):
+class MoleculeDataset(Dataset):
+    def __init__(self, root, filename, transform=None, pre_transform=None):
+        self.root = root
         self.filename = filename
+        self.data = self.get()
         super(MoleculeDataset, self).__init__(root, transform, pre_transform)
 
     @property
@@ -25,20 +21,23 @@ class MoleculeDataset(InMemoryDataset):
 
     @property
     def processed_file_names(self):
-        return [
-            "data.pt",
-        ]
+        return ["data.pt"]
 
     def download(self):
         pass
 
     def process(self):
-        self.datadf = pd.read_csv(self.raw_paths[0]).reset_index()
+        self.data = pd.read_csv(self.raw_paths[0]).reset_index()
         featurizer = dc.feat.MolGraphConvFeaturizer(use_edges=True)
 
-        data = []
+        data = Data()
 
-        for index, row in tqdm(self.datadf.iterrows(), total=len(self.datadf)):
+        node_features_list = []
+        edge_index_list = []
+        edge_features_list = []
+        label_list = []
+
+        for index, row in tqdm(self.data.iterrows(), total=self.data.shape[0]):
             mol = Chem.MolFromSmiles(row["Canomicalsmiles"])
             f = featurizer._featurize(mol)
             node_features = torch.tensor(f.node_features, dtype=torch.float)
@@ -46,37 +45,28 @@ class MoleculeDataset(InMemoryDataset):
             edge_features = torch.tensor(f.edge_features, dtype=torch.float)
 
             label = self._get_labels(row["pChEMBL"])
-            data_point = Data(
-                x=node_features,
-                edge_index=edge_index,
-                edge_attr=edge_features,
-                y=label,
-                smiles=row["Canomicalsmiles"],
-            )
-            data.append(data_point)
 
-        data = Batch.from_data_list(data)
+            node_features_list.append(node_features)
+            edge_index_list.append(edge_index)
+            edge_features_list.append(edge_features)
+            label_list.append(label)
+
+        data.x = torch.cat(node_features_list, dim=0)
+        data.edge_index = torch.cat(edge_index_list, dim=1)
+        data.edge_attr = torch.cat(edge_features_list, dim=0)
+        data.y = torch.cat(label_list, dim=0)
 
         torch.save(data, os.path.join(self.processed_dir, "data.pt"))
 
     def _get_labels(self, label):
         label = np.asarray([label])
-        return torch.tensor(
-            label, dtype=torch.float32
-        )  # Adjust the data type as needed
+        return torch.tensor(label, dtype=torch.int64)
 
     def len(self):
-        data_file = os.path.join(self.processed_dir, "data.pt")
-        if os.path.exists(data_file):
-            data = torch.load(data_file)
-            return len(data)
-        return 0
+        return self.data.shape[0]
 
-    def get(self, idx):
+    def get(self):
         data_file = os.path.join(self.processed_dir, "data.pt")
-        if os.path.exists(data_file):
-            data = torch.load(data_file)
-            return data[idx]
-        else:
+        if not os.path.exists(data_file):
             self.process()
-            return self.get(idx)
+        return torch.load(data_file)
