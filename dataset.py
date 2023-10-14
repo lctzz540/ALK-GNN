@@ -63,7 +63,7 @@ class MoleculeDataset(Dataset):
         return torch.tensor(label, dtype=torch.int64)
 
     def len(self):
-        return self.data.shape[0]
+        return len(self.data.x)
 
     def get(self):
         data_file = os.path.join(self.processed_dir, "data.pt")
