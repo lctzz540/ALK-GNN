@@ -8,6 +8,7 @@ from rdkit.Chem.rdchem import HybridizationType
 from rdkit.Chem.rdchem import BondType as BT
 from torch_geometric.utils import one_hot, scatter
 from rdkit.Chem import AllChem
+import torch_sparse
 
 
 class MoleculeDataset(Dataset):
@@ -85,6 +86,15 @@ class MoleculeDataset(Dataset):
                 edge_types += 2 * [bonds[bond.GetBondType()]]
 
             edge_index = torch.tensor([rows, cols], dtype=torch.long)
+            if not isinstance(edge_index, torch.LongTensor):
+                edge_index = edge_index.to(torch.long)
+                edge_index = edge_index.t()
+
+            if not isinstance(edge_index, torch_sparse.SparseTensor):
+                edge_index = torch_sparse.SparseTensor(
+                    edge_index, torch.ones(edge_index.shape[1])
+                )
+
             edge_type = torch.tensor(edge_types, dtype=torch.long)
             edge_attr = one_hot(edge_type, num_classes=len(bonds))
 
@@ -93,9 +103,10 @@ class MoleculeDataset(Dataset):
             edge_type = edge_type[perm]
             edge_attr = edge_attr[perm]
 
-            row, col = edge_index
             hs = (z == 1).to(torch.float)
-            num_hs = scatter(hs[row], col, dim_size=N, reduce="sum").tolist()
+            num_hs = scatter(
+                hs[edge_index[0]], edge_index[1], dim_size=N, reduce="sum"
+            ).tolist()
 
             x1 = one_hot(torch.tensor(type_idx), num_classes=len(types))
             x2 = (
